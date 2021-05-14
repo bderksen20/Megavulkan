@@ -35,9 +35,6 @@ namespace vke {
 			static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
 			void initWindow();	// helper fxn
 
-			//const int width;
-			//const int height;
-			// changed for dynamic window resizing
 			int width;
 			int height;
 			bool frameBufferResized = false;

@@ -22,7 +22,7 @@ namespace vke {
 		window = glfwCreateWindow(width, height, window_name.c_str(), nullptr, nullptr);
 
 		// Addded for window resizing
-		glfwSetWindowUserPointer(window, this);		// window's pointer is paired to the same value as the parent "vke" obj
+		glfwSetWindowUserPointer(window, this);								// window's pointer is paired to the same value as the parent "vke" obj
 		glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);	// NOTE: glfw library allows for a callbak to be registered and performed whenever window is resized
 	}
 

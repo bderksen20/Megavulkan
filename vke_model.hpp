@@ -17,7 +17,7 @@ namespace vke {
 
 		// Uses interleaved position and color buffer
 		struct Vertex {
-			glm::vec2 position;
+			glm::vec4 position;
 			glm::vec3 color;
 			static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
 			static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();

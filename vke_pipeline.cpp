@@ -186,8 +186,13 @@ namespace vke {
 		configInfo.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
 		configInfo.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;	// What pieces of triangles to draw (entire thing, edges, verts??)
 		configInfo.rasterizationInfo.lineWidth = 1.0f;
-		configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;			// IMPORTANT: culls faces that do not match frontal face direction
-		configInfo.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;	// the front face of tri = if vertices are defined in clockwise manner: ex, top->bottom right->bottom left
+		//configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;			// IMPORTANT: culls faces that do not match frontal face direction
+		//configInfo.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;	// the front face of tri = if vertices are defined in clockwise manner: ex, top->bottom right->bottom left
+
+		//TODO:: test
+		configInfo.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;				// 
+		configInfo.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;	// the front face of tri = if vertices are defined in clockwise manner: ex, top->bottom right->bottom left
+
 		configInfo.rasterizationInfo.depthBiasEnable = VK_FALSE;				// alter depth biases
 		configInfo.rasterizationInfo.depthBiasConstantFactor = 0.0f;		//optional
 		configInfo.rasterizationInfo.depthBiasClamp = 0.0f;					//optional

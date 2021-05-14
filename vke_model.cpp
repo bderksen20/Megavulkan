@@ -35,7 +35,7 @@ namespace vke {
 
 	void VkeModel::bind(VkCommandBuffer commandBuffer) {
 		VkBuffer buffers[] = { vertexBuffer };
-		VkDeviceSize offsets[] = { 0 };
+		VkDeviceSize offsets[] = { 0 };		// todo: may need larger offset for buffer
 		vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);	// records to command buffer to bind one vertex buffer at 0 w offset 0
 	}
 
@@ -56,7 +56,7 @@ namespace vke {
 		std::vector<VkVertexInputAttributeDescription> attributeDescriptions(2);
 		attributeDescriptions[0].binding = 0;
 		attributeDescriptions[0].location = 0;
-		attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 		attributeDescriptions[0].offset = offsetof(Vertex, position);
 
 		// color attributes, added for testing

@@ -39,11 +39,7 @@ namespace vke {
 			VkDerkDevice vkDerkDevice{ vkeWindow };
 			VkeRenderer vkeRenderer{ vkeWindow, vkDerkDevice };
 
-			// Init graphics pipeline! Removed for new unique pipeline
-			// VkePipeline vkePipeline{vkDerkDevice, "simple_shader.vert.spv", "simple_shader.frag.spv", VkePipeline::defaultPipelineConfigInfo(WIDTH, HEIGHT)};
-
 			// Replaced for game objs tutorial
-			//std::unique_ptr<VkeModel> vkeModel;
 			std::vector<VkeGameObject> gameObjects;
 	};
 
