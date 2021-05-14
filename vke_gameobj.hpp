@@ -20,7 +20,8 @@ namespace vke {
 			const float c = glm::cos(rotation);
 			glm::mat2 rotMat{ {c, s}, {-s, c } };
 			glm::mat2 scaleMat{ {scale.x, .0f}, {0.f, scale.y } };
-			return rotMat * scaleMat;
+			//return rotMat * scaleMat;
+			return rotMat;
 		}
 	};
 

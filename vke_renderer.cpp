@@ -8,17 +8,161 @@
 #include <iostream>
 #include <cassert>
 
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
+#include <chrono>
+
 namespace vke {
+
+	// Uniform buffer struct for transformations
+	struct UniformBuffo {
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 proj;
+	};
 
 	// Constructor Imp.
 	VkeRenderer::VkeRenderer(VkeWindow& window, VkDerkDevice& device) : vkeWindow{ window }, vkDerkDevice { device } {
 		//createPipeline();			// changed to recreateSwapChain for window resize (calls createPipeline)
+		
+		// TODO:: ok to put in renderer? does this make sense??
+		createDescriptorSetLayout();
+
 		recreateSwapChain();
+		createUniformBuffers();		// swap chain needs to be created before this
+		createDescriptorPool();
+		createDescriptorSets();
 		createCommandBuffers();
 	}
 
 	// Destructor Imp.
-	VkeRenderer::~VkeRenderer() { freeCommandBuffers(); }
+	// TODO: test uniform buffer destruction with renderer 
+	// - NOTE: should they be destroyed with the swap chain??? probably.... also need to recreate with new swapchain then
+	VkeRenderer::~VkeRenderer() { 
+		freeCommandBuffers(); 
+		freeUniformBuffers();
+	}
+
+	// Create descriptor layout for uniform buffer
+	void VkeRenderer::createDescriptorSetLayout() {
+		VkDescriptorSetLayoutBinding uboLayoutBinding{};							// need to describe binding via this struct
+		uboLayoutBinding.binding = 0;												// specify binding used in shader
+		uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		uboLayoutBinding.descriptorCount = 1;										// possible to have multiple values in array (could have mult transforms, one for a bone in a skeleton for animation?)
+		uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;					// describe in which shaders this descriptor is used (only vertex for now)
+		uboLayoutBinding.pImmutableSamplers = nullptr;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &uboLayoutBinding;
+
+		if (vkCreateDescriptorSetLayout(vkDerkDevice.device(), &layoutInfo, nullptr, &descriptorSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor set layout!");
+		}
+
+	}
+	// TODO: janky
+	//void VkeRenderer::setDescriptorSetLayoutRef(VkDescriptorSetLayout descriptorSetLayout) { descriptorSetLayoutRef = descriptorSetLayout; }
+
+	// TODO:: ok to put in renderer? does this make sense??
+	// Allocate uniform buffers
+	void VkeRenderer::createUniformBuffers() {
+
+		VkDeviceSize bufferSize = sizeof(UniformBuffo);
+
+		uniformBuffers.resize(vkeSwapChain->imageCount());			// pointer to swapchain, get n images in swapchain
+		uniformBuffersMemory.resize(vkeSwapChain->imageCount());
+
+		// Iterate to create buffers
+		for (size_t i = 0; i < vkeSwapChain->imageCount(); i++) {
+			vkDerkDevice.createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+				uniformBuffers[i], uniformBuffersMemory[i]);
+		}
+
+	}
+
+	// TODO:: test
+	void VkeRenderer::createDescriptorSets() {
+
+		// describe descriptor set allocation: specify pool to alloc from, number of desc. sets, and the layout (IN RENDERSYS???)
+		std::vector<VkDescriptorSetLayout> layouts(vkeSwapChain->imageCount(), descriptorSetLayout);		//descriptorSetLayoutRef may be messed up
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = descriptorPool;
+		allocInfo.descriptorSetCount = static_cast<uint32_t>(vkeSwapChain->imageCount());
+		allocInfo.pSetLayouts = layouts.data();
+
+		// allocate into member var
+		descriptorSets.resize(vkeSwapChain->imageCount());
+		if (vkAllocateDescriptorSets(vkDerkDevice.device(), &allocInfo, descriptorSets.data()) != VK_SUCCESS) {
+			throw std::runtime_error("failed to allocate descriptor sets!");
+		}
+
+		// desc. sets alloc'd, now populate every descriptor
+		for (size_t i = 0; i < vkeSwapChain->imageCount(); i++) {
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = uniformBuffers[i];
+			bufferInfo.offset = 0;
+			bufferInfo.range = sizeof(UniformBuffo);
+
+			VkWriteDescriptorSet descriptorWrite{};
+			descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			descriptorWrite.dstSet = descriptorSets[i];
+			descriptorWrite.dstBinding = 0;
+			descriptorWrite.dstArrayElement = 0;
+			descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptorWrite.descriptorCount = 1;
+			descriptorWrite.pBufferInfo = &bufferInfo;
+			descriptorWrite.pImageInfo = nullptr; // Optional
+			descriptorWrite.pTexelBufferView = nullptr; // Optional
+
+			vkUpdateDescriptorSets(vkDerkDevice.device(), 1, &descriptorWrite, 0, nullptr);
+		}
+	}
+
+	// TODO:: test
+	void VkeRenderer::createDescriptorPool() {
+		VkDescriptorPoolSize poolSize{};
+		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSize.descriptorCount = static_cast<uint32_t>(vkeSwapChain->imageCount());
+
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.poolSizeCount = 1;
+		poolInfo.pPoolSizes = &poolSize;
+
+		poolInfo.maxSets = static_cast<uint32_t>(vkeSwapChain->imageCount());	// max num of descriptor sets that can be alloced
+		if (vkCreateDescriptorPool(vkDerkDevice.device(), &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
+			throw std::runtime_error("failed to create descriptor pool!");
+		}
+	}
+
+	// TODO:: test
+	void VkeRenderer::updateUniformBuffer(uint32_t currentImage) {
+
+		// Chrono timekeeping...
+		static auto startTime = std::chrono::high_resolution_clock::now();
+
+		auto currentTime = std::chrono::high_resolution_clock::now();
+		float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+		// Create and prime transforms...
+		UniformBuffo ubo{};
+		ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		ubo.proj = glm::perspective(glm::radians(45.0f), vkeSwapChain->getSwapChainExtent().width / (float)vkeSwapChain->getSwapChainExtent().height, 0.1f, 10.0f);
+		ubo.proj[1][1] *= -1;
+
+		// Copy buff into current uniform buffer
+		void* data;
+		vkMapMemory(vkDerkDevice.device(), uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
+		memcpy(data, &ubo, sizeof(ubo));
+		vkUnmapMemory(vkDerkDevice.device(), uniformBuffersMemory[currentImage]);
+
+	}
 
 	// Adde for window resizing
 	void VkeRenderer::recreateSwapChain() {
@@ -69,6 +213,16 @@ namespace vke {
 
 	}
 
+	// TODO: test
+	void VkeRenderer::freeUniformBuffers() {
+		for (size_t i = 0; i < vkeSwapChain->imageCount(); i++) {
+			vkDestroyBuffer(vkDerkDevice.device(), uniformBuffers[i], nullptr);
+			vkFreeMemory(vkDerkDevice.device(), uniformBuffersMemory[i], nullptr);
+		}
+
+		vkDestroyDescriptorPool(vkDerkDevice.device(), descriptorPool, nullptr);
+	}
+
 	void VkeRenderer::freeCommandBuffers() {
 		vkFreeCommandBuffers(
 			vkDerkDevice.device(),
@@ -94,6 +248,9 @@ namespace vke {
 		if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
 			throw std::runtime_error("failed to acquire swap chain image!");
 		}
+
+		// TODO:: test uniform buffer
+		updateUniformBuffer(currentImageIndex);
 
 		isFrameStarted = true;
 		auto commandBuffer = getCurrentCommandBuffer();
